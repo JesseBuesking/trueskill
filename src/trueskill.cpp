@@ -35,7 +35,11 @@ struct player_sorter {
 };
 
 std::ostream& operator<<(std::ostream &strm, const Player &p) {
-  return strm << "Player(mu=" << p.mu << ";sigma=" << p.sigma << ";rank=" << p.rank << ")";
+  strm << std::fixed;
+  strm << "Player(mu=" << std::setprecision(3) << p.mu <<
+    ";sigma=" << std::setprecision(3) << p.sigma <<
+    ";rank=" << p.rank << ")";
+  return strm;
 }
 
 void Gaussian::init_pi_tau(double pi, double tau) {
@@ -91,7 +95,9 @@ void Variable::update_value(Factor* factor, Gaussian* value) {
 }
 
 Gaussian* Variable::get_message(Factor* factor) {
+#if DEBUG
   std::cout << "gm[" << GMID++ << "]=" << *this->factors[factor] << std::endl;
+#endif
   return this->factors[factor];
 }
 
@@ -143,7 +149,9 @@ void LikelihoodFactor::update_value() {
     a * (y.pi - fy.pi),
     a * (y.tau - fy.tau)
   );
+#if DEBUG
   std::cout << *gaussian << std::endl;
+#endif
   this->value->update_message(this, gaussian);
 }
 
@@ -193,7 +201,9 @@ void SumFactor::_internal_update(
     da = (*a)[i];
     gy = *(*y)[i];
     gfy = *(*fy)[i];
+#if DEBUG
     std::cout << "gy=" << gy << ",gfy=" << gfy << std::endl;
+#endif
 
     // gy = this->terms[i]->value;
     // gfy = *this->terms[i]->get_message(this);
@@ -234,7 +244,9 @@ void SumFactor::update_term(unsigned int index) {
     }
   }
   (*a)[index] = 1.0 / idxcoeff;
+#if DEBUG
   std::cout << (*a)[0] << "," << (*a)[1] << std::endl;
+#endif
 
   Variable* idxterm = (*this->terms)[index];
   std::vector<Gaussian*>* y = new std::vector<Gaussian*>;
@@ -242,10 +254,14 @@ void SumFactor::update_term(unsigned int index) {
 
   std::vector<Variable*> v = *this->terms;
   v[index] = this->sum;
+#if DEBUG
   std::cout << *this->sum->value << std::endl;
+#endif
   int size2 = v.size();
   for (int i = 0; i < size2; ++i) {
+#if DEBUG
 	  std::cout << *v[i] << " " << *(*this->terms)[i] << std::endl;
+#endif
   }
 
   for(std::vector<Variable*>::iterator it = v.begin(); it != v.end(); ++it) {
@@ -419,22 +435,34 @@ void adjust_players(std::vector<Player*> players) {
 
   for (i = 0; i < 5; ++i) {
     for(std::vector<SumFactor*>::iterator it = team_diff.begin(); it != team_diff.end(); ++it) {
+#if DEBUG
       std::cout << "usa " << **it << std::endl;
+#endif
       (*it)->update_sum();
+#if DEBUG
       std::cout << "usb " << **it << std::endl;
+#endif
     }
 
     for(std::vector<TruncateFactor*>::iterator it = trunc.begin(); it != trunc.end(); ++it) {
+#if DEBUG
       std::cout << "ua " << **it << std::endl;
+#endif
       (*it)->update();
+#if DEBUG
       std::cout << "ub " << **it << std::endl;
+#endif
     }
 
     for(std::vector<SumFactor*>::iterator it = team_diff.begin(); it != team_diff.end(); ++it) {
+#if DEBUG
 	  std::cout << "uta " << **it << std::endl;
+#endif
 	  (*it)->update_term(0);
 	  (*it)->update_term(1);
+#if DEBUG
       std::cout << "utb " << **it << std::endl;
+#endif
     }
   }
 
