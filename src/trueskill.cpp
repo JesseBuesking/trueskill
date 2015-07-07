@@ -81,14 +81,11 @@ void Variable::attach_factor(Factor* factor) {
 void Variable::update_message(Factor* factor, Gaussian* message) {
   Gaussian* old = this->factors[factor];
   this->value = *(*this->value / old) * message;
-//  this->value = (*this->value / *old) * *message;
-//  old = message;
   this->factors[factor] = message;
 }
 
 void Variable::update_value(Factor* factor, Gaussian* value) {
   Gaussian* old = this->factors[factor];
-//  old = *(*value * old) / this->value;
   this->factors[factor] = *(*value * old) / this->value;
   this->value = value;
 }
@@ -146,6 +143,7 @@ void LikelihoodFactor::update_value() {
     a * (y.pi - fy.pi),
     a * (y.tau - fy.tau)
   );
+  std::cout << *gaussian << std::endl;
   this->value->update_message(this, gaussian);
 }
 
@@ -279,11 +277,11 @@ void TruncateFactorWin::update() {
 
   double c, d, sqrt_c, V, W, t, e, mW;
   c = x->pi - fx->pi;
-  d = x->tau = fx->tau;
+  d = x->tau - fx->tau;
   sqrt_c = sqrt(c);
 
   t = d / sqrt_c;
-  e = epsilon * sqrt_c;
+  e = this->epsilon * sqrt_c;
 
   V = Vwin(t, e);
   W = Wwin(t, e);
@@ -315,18 +313,8 @@ void TruncateFactorDraw::update() {
   this->variable->update_value(this, gaussian);
 }
 
-//std::ostream& operator<<(std::ostream &strm, const TruncateFactor &f) {
-//  strm << "<-TruncateFactor(" << f << ")";
-//  return strm;
-//}
-
-std::ostream& operator<<(std::ostream &strm, const TruncateFactorWin &f) {
-  strm << static_cast<const Factor &>(f) << "<-TruncateWinFactor(" << *f.variable << "," << f.epsilon << ")";
-  return strm;
-}
-
-std::ostream& operator<<(std::ostream &strm, const TruncateFactorDraw &f) {
-  strm << static_cast<const Factor &>(f) << "<-TruncateFactorDraw(" << *f.variable << "," << f.epsilon << ")";
+std::ostream& operator<<(std::ostream &strm, const TruncateFactor &f) {
+  strm << static_cast<const Factor &>(f) << "<-TruncateFactor(" << *f.variable << "," << f.epsilon << ")";
   return strm;
 }
 
@@ -461,7 +449,6 @@ void adjust_players(std::vector<Player*> players) {
   for (i = 0; i < size; ++i) {
     players[i]->mu = ss[i]->value->get_mu();
     players[i]->sigma = ss[i]->value->get_sigma();
-    std::cout << players[i] << std::endl;
   }
 }
 

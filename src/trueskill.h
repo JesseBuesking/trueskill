@@ -117,14 +117,15 @@ public:
 
 class TruncateFactor : public Factor {
 public:
+  Variable* variable;
+  double epsilon;
   virtual void update() {}
+  TruncateFactor(Variable* variable, double epsilon) : variable(variable), epsilon(epsilon) {}
 };
 
 class TruncateFactorDraw : public TruncateFactor {
 public:
-  Variable* variable;
-  double epsilon;
-  TruncateFactorDraw(Variable* variable, double epsilon) : variable(variable), epsilon(epsilon) {
+  TruncateFactorDraw(Variable* variable, double epsilon) : TruncateFactor(variable, epsilon) {
 	std::vector<Variable*>* variables = new std::vector<Variable*>;
     variables->push_back(variable);
     this->set_variables(variables);
@@ -134,9 +135,7 @@ public:
 
 class TruncateFactorWin : public TruncateFactor {
 public:
-  Variable* variable;
-  double epsilon;
-  TruncateFactorWin(Variable* variable, double epsilon) : variable(variable), epsilon(epsilon) {
+  TruncateFactorWin(Variable* variable, double epsilon) : TruncateFactor(variable, epsilon) {
 	std::vector<Variable*>* variables = new std::vector<Variable*>;
     variables->push_back(variable);
     this->set_variables(variables);
