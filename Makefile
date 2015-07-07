@@ -1,3 +1,8 @@
+# ex.
+# make - makes the solution with debug settings
+# make BUILD=release - makes the solution with optimizations turned on
+# make clean - cleans the build
+
 CC := g++ # this is the main compiler
 SRCDIR := src
 BUILDDIR := build
@@ -7,6 +12,9 @@ SRCEXT := cpp
 SOURCES := $(shell find $(SRCDIR) -type f -name *.$(SRCEXT))
 OBJECTS := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.o))
 CFLAGS := -g # -Wall
+ifeq ($(BUILD), release)
+CFLAGS := -Os
+endif
 LIB := -pthread #-lmongoclient -L lib -lboost_thread-mt -lboost_filesystem-mt -lboost_system-mt
 INC := -I include
 
