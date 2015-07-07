@@ -348,7 +348,7 @@ Constants::Constants() {
   this->GAMMA = INITIAL_SIGMA / 100.0;
 }
 
-void adjust_players(std::vector<Player*> players) {
+void TrueSkill::adjust_players(std::vector<Player*> players) {
   Constants* constants = new Constants();
 
   std::sort(players.begin(), players.end(), player_sorter());
@@ -511,7 +511,8 @@ void simple_example() {
 
   // Do the computation to find each player's new skill estimate.
 
-  adjust_players(players);
+  TrueSkill ts;
+  ts.adjust_players(players);
 
   // Print the results.
 

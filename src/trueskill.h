@@ -151,7 +151,11 @@ public:
   Constants();
 };
 
-void adjust_players(std::vector<Player*> players);
+class TrueSkill {
+public:
+  void adjust_players(std::vector<Player*> players);
+};
+
 void simple_example();
 
 #endif /* INC_TRUESKILL_H */
