@@ -1,0 +1,14 @@
+# Ignore the build and lib dirs
+build
+lib/*
+# eclipse
+Debug/*
+
+*.log
+*.o
+
+# Ignore any executables
+bin/*
+
+# Ignore Mac specific files
+.DS_Store
