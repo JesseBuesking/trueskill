@@ -77,28 +77,49 @@ std::ostream& operator<<(std::ostream &strm, const Gaussian &g) {
   return strm;
 }
 
+Variable::~Variable() {
+	delete this->value;
+	for (std::map<Factor, Gaussian*>::iterator it = this->factors.begin(); it != this->factors.end(); ++it) {
+		delete it->second;
+	}
+	this->factors.clear();
+}
+
 void Variable::attach_factor(Factor* factor) {
   Gaussian* gaussian = new Gaussian();
-  this->factors[factor] = gaussian;
+  this->factors[*factor] = gaussian;
 }
 
 void Variable::update_message(Factor* factor, Gaussian* message) {
-  Gaussian* old = this->factors[factor];
-  this->value = *(*this->value / old) * message;
-  this->factors[factor] = message;
+  Gaussian* old = this->factors[*factor];
+
+  Gaussian* intermediate = *this->value / old;
+  Gaussian* value = *intermediate * message;
+  delete intermediate;
+  delete this->value;
+  this->value = value;
+
+  delete this->factors[*factor];
+  this->factors[*factor] = message;
 }
 
 void Variable::update_value(Factor* factor, Gaussian* value) {
-  Gaussian* old = this->factors[factor];
-  this->factors[factor] = *(*value * old) / this->value;
+  Gaussian* old = this->factors[*factor];
+
+  Gaussian* intermediate = *value * old;
+  this->factors[*factor] = *intermediate / this->value;
+  delete intermediate;
+  delete old;
+
+  delete this->value;
   this->value = value;
 }
 
 Gaussian* Variable::get_message(Factor* factor) {
-#if DEBUG
-  std::cout << "gm[" << GMID++ << "]=" << *this->factors[factor] << std::endl;
-#endif
-  return this->factors[factor];
+//#if DEBUG
+//  std::cout << "gm[" << GMID++ << "]=" << *this->factors[*factor] << std::endl;
+//#endif
+  return this->factors[*factor];
 }
 
 std::ostream& operator<<(std::ostream &strm, const Variable &v) {
@@ -117,6 +138,8 @@ std::ostream& operator<<(std::ostream &strm, const std::vector<Variable*> &v) {
   return strm;
 }
 
+Factor::~Factor() {}
+
 void Factor::set_variables(std::vector<Variable*>* variables) {
   this->variables = variables;
   for(std::vector<Variable*>::iterator it = variables->begin(); it != variables->end(); ++it) {
@@ -131,6 +154,13 @@ std::ostream& operator<<(std::ostream &strm, const Factor &f) {
   return strm;
 }
 
+PriorFactor::~PriorFactor() {
+  while(!this->variables->empty()) {
+    this->variables->pop_back();
+  }
+  delete this->variables;
+}
+
 void PriorFactor::start() {
   (*this->variables)[0]->update_value(this, this->gaussian);
 }
@@ -140,18 +170,24 @@ std::ostream& operator<<(std::ostream &strm, const PriorFactor &f) {
   return strm;
 }
 
+LikelihoodFactor::~LikelihoodFactor() {
+  while(!this->variables->empty()) {
+	this->variables->pop_back();
+  }
+  delete this->variables;
+}
+
 void LikelihoodFactor::update_value() {
   Gaussian y = *this->mean->value;
   Gaussian fy = *this->mean->get_message(this);
   double a = 1.0 / (1.0 + this->variance * (y.pi - fy.pi));
+
   Gaussian* gaussian = new Gaussian();
   gaussian->init_pi_tau(
     a * (y.pi - fy.pi),
     a * (y.tau - fy.tau)
   );
-#if DEBUG
-  std::cout << *gaussian << std::endl;
-#endif
+
   this->value->update_message(this, gaussian);
 }
 
@@ -159,6 +195,7 @@ void LikelihoodFactor::update_mean() {
   Gaussian x = *this->value->value;
   Gaussian fx = *this->value->get_message(this);
   double a = 1.0 / (1.0 + this->variance * (x.pi - fx.pi));
+
   Gaussian* gaussian = new Gaussian();
   gaussian->init_pi_tau(
     a * (x.pi - fx.pi),
@@ -170,6 +207,23 @@ void LikelihoodFactor::update_mean() {
 std::ostream& operator<<(std::ostream &strm, const LikelihoodFactor &f) {
   strm << static_cast<const Factor &>(f) << "<-Likelihood(" << *f.mean << "," << *f.value << "," << f.variance << ")";
   return strm;
+}
+
+SumFactor::~SumFactor() {
+  while(!this->terms->empty()) {
+	this->terms->pop_back();
+  }
+  delete this->terms;
+
+  while(!this->coeffs->empty()) {
+	this->coeffs->pop_back();
+  }
+  delete this->coeffs;
+
+  while(!this->variables->empty()) {
+    this->variables->pop_back();
+  }
+  delete this->variables;
 }
 
 SumFactor::SumFactor(Variable* sum, std::vector<Variable*>* terms, std::vector<double>* coeffs) {
@@ -189,8 +243,8 @@ SumFactor::SumFactor(Variable* sum, std::vector<Variable*>* terms, std::vector<d
 
 void SumFactor::_internal_update(
   Variable* var,
-  std::vector<Gaussian*>* y,
-  std::vector<Gaussian*>* fy,
+  std::vector<Gaussian*> y,
+  std::vector<Gaussian*> fy,
   std::vector<double>* a) {
 
   double sum_pi = 0.0, sum_tau = 0.0, new_pi, new_tau, da;
@@ -199,15 +253,9 @@ void SumFactor::_internal_update(
 
   for (i = 0; i < size; ++i) {
     da = (*a)[i];
-    gy = *(*y)[i];
-    gfy = *(*fy)[i];
-#if DEBUG
-    std::cout << "gy=" << gy << ",gfy=" << gfy << std::endl;
-#endif
+    gy = *y[i];
+    gfy = *fy[i];
 
-    // gy = this->terms[i]->value;
-    // gfy = *this->terms[i]->get_message(this);
-    // std::cout << "gy=" << gy << ",gfy=" << gfy << std::endl;
     sum_pi = sum_pi + ((da * da) / (gy.pi - gfy.pi));
     sum_tau = sum_tau + (da * (gy.tau - gfy.tau) / (gy.pi - gfy.pi));
   }
@@ -221,14 +269,14 @@ void SumFactor::_internal_update(
 }
 
 void SumFactor::update_sum() {
-  std::vector<Gaussian*>* y = new std::vector<Gaussian*>;
+  std::vector<Gaussian*>y;
   for(std::vector<Variable*>::iterator it = this->terms->begin(); it != this->terms->end(); ++it) {
-    y->push_back((*it)->value);
+    y.push_back((*it)->value);
   }
 
-  std::vector<Gaussian*>* fy = new std::vector<Gaussian*>;
+  std::vector<Gaussian*> fy;
   for(std::vector<Variable*>::iterator it = this->terms->begin(); it != this->terms->end(); ++it) {
-    fy->push_back((*it)->get_message(this));
+    fy.push_back((*it)->get_message(this));
   }
   this->_internal_update(this->sum, y, fy, this->coeffs);
 }
@@ -236,39 +284,26 @@ void SumFactor::update_sum() {
 void SumFactor::update_term(unsigned int index) {
   unsigned int i = 0, size = this->coeffs->size();
   double idxcoeff = (*this->coeffs)[index];
-  std::vector<double>* a = new std::vector<double>(size);
+  std::vector<double> a(size);
 
   for (i = 0; i < size; ++i) {
 	if (i != index) {
-      (*a)[i] = -(*this->coeffs)[i] / idxcoeff;
+      a[i] = -(*this->coeffs)[i] / idxcoeff;
     }
   }
-  (*a)[index] = 1.0 / idxcoeff;
-#if DEBUG
-  std::cout << (*a)[0] << "," << (*a)[1] << std::endl;
-#endif
+  a[index] = 1.0 / idxcoeff;
 
   Variable* idxterm = (*this->terms)[index];
-  std::vector<Gaussian*>* y = new std::vector<Gaussian*>;
-  std::vector<Gaussian*>* fy = new std::vector<Gaussian*>;
+  std::vector<Gaussian*> y;
+  std::vector<Gaussian*> fy;
 
   std::vector<Variable*> v = *this->terms;
   v[index] = this->sum;
-#if DEBUG
-  std::cout << *this->sum->value << std::endl;
-#endif
-  int size2 = v.size();
-  for (int i = 0; i < size2; ++i) {
-#if DEBUG
-	  std::cout << *v[i] << " " << *(*this->terms)[i] << std::endl;
-#endif
-  }
-
   for(std::vector<Variable*>::iterator it = v.begin(); it != v.end(); ++it) {
-	y->push_back((*it)->value);
-    fy->push_back((*it)->get_message(this));
+	y.push_back((*it)->value);
+    fy.push_back((*it)->get_message(this));
   }
-  this->_internal_update(idxterm, y, fy, a);
+  this->_internal_update(idxterm, y, fy, &a);
 }
 
 std::ostream& operator<<(std::ostream &strm, const SumFactor &f) {
@@ -285,6 +320,20 @@ std::ostream& operator<<(std::ostream &strm, const SumFactor &f) {
 
   strm << "])";
   return strm;
+}
+
+TruncateFactorWin::~TruncateFactorWin() {
+  while(!this->variables->empty()) {
+	this->variables->pop_back();
+  }
+  delete this->variables;
+}
+
+TruncateFactorDraw::~TruncateFactorDraw() {
+  while(!this->variables->empty()) {
+	this->variables->pop_back();
+  }
+  delete this->variables;
 }
 
 void TruncateFactorWin::update() {
@@ -349,16 +398,14 @@ Constants::Constants() {
 }
 
 void TrueSkill::adjust_players(std::vector<Player*> players) {
-  Constants* constants = new Constants();
+  Constants constants;
 
   std::sort(players.begin(), players.end(), player_sorter());
 
   std::vector<Variable*> ss, ps, ts, ds;
   unsigned int i = 0, size = players.size();
-  double psigma,
-    psigmasqr,
-    gammasqr = constants->GAMMA * constants->GAMMA,
-    betasqr = constants->BETA * constants->BETA;
+  double gammasqr = constants.GAMMA * constants.GAMMA,
+    betasqr = constants.BETA * constants.BETA;
 
   for (i = 0; i < size; ++i) {
     ss.push_back(new Variable());
@@ -375,7 +422,6 @@ void TrueSkill::adjust_players(std::vector<Player*> players) {
 	Player* pl = players[i];
 	Variable* s = ss[i];
     Gaussian* gaussian = new Gaussian();
-
     gaussian->init_mu_sigma(pl->mu, sqrt((pl->sigma * pl->sigma) + gammasqr));
     skill.push_back(new PriorFactor(s, gaussian));
   }
@@ -391,12 +437,9 @@ void TrueSkill::adjust_players(std::vector<Player*> players) {
   for (i = 0; i < size; ++i) {
     std::vector<Variable*>* p = new std::vector<Variable*>();
     std::vector<double>* c = new std::vector<double>;
-
-    Variable* t = ts[i];
     p->push_back(ps[i]);
     c->push_back(1.0);
-
-    perf_to_team.push_back(new SumFactor(t, p, c));
+    perf_to_team.push_back(new SumFactor(ts[i], p, c));
   }
 
   std::vector<SumFactor*> team_diff;
@@ -414,9 +457,9 @@ void TrueSkill::adjust_players(std::vector<Player*> players) {
   for (i = 0; i < size - 1; ++i) {
     TruncateFactor* tf;
     if (players[i]->rank == players[i + 1]->rank) {
-      tf = new TruncateFactorDraw(ds[i], constants->EPSILON);
+      tf = new TruncateFactorDraw(ds[i], constants.EPSILON);
     } else {
-      tf = new TruncateFactorWin(ds[i], constants->EPSILON);
+      tf = new TruncateFactorWin(ds[i], constants.EPSILON);
     }
     trunc.push_back(tf);
   }
@@ -435,34 +478,16 @@ void TrueSkill::adjust_players(std::vector<Player*> players) {
 
   for (i = 0; i < 5; ++i) {
     for(std::vector<SumFactor*>::iterator it = team_diff.begin(); it != team_diff.end(); ++it) {
-#if DEBUG
-      std::cout << "usa " << **it << std::endl;
-#endif
       (*it)->update_sum();
-#if DEBUG
-      std::cout << "usb " << **it << std::endl;
-#endif
     }
 
     for(std::vector<TruncateFactor*>::iterator it = trunc.begin(); it != trunc.end(); ++it) {
-#if DEBUG
-      std::cout << "ua " << **it << std::endl;
-#endif
       (*it)->update();
-#if DEBUG
-      std::cout << "ub " << **it << std::endl;
-#endif
     }
 
     for(std::vector<SumFactor*>::iterator it = team_diff.begin(); it != team_diff.end(); ++it) {
-#if DEBUG
-	  std::cout << "uta " << **it << std::endl;
-#endif
 	  (*it)->update_term(0);
 	  (*it)->update_term(1);
-#if DEBUG
-      std::cout << "utb " << **it << std::endl;
-#endif
     }
   }
 
@@ -477,6 +502,51 @@ void TrueSkill::adjust_players(std::vector<Player*> players) {
   for (i = 0; i < size; ++i) {
     players[i]->mu = ss[i]->value->get_mu();
     players[i]->sigma = ss[i]->value->get_sigma();
+  }
+
+  while(!skill.empty()) {
+	delete skill.back();
+	skill.pop_back();
+  }
+
+  while(!skill_to_perf.empty()) {
+	delete skill_to_perf.back();
+	skill_to_perf.pop_back();
+  }
+
+  while(!perf_to_team.empty()) {
+	delete perf_to_team.back();
+	perf_to_team.pop_back();
+  }
+
+  while(!team_diff.empty()) {
+	delete team_diff.back();
+	team_diff.pop_back();
+  }
+
+  while(!trunc.empty()) {
+	delete trunc.back();
+	trunc.pop_back();
+  }
+
+  while(!ss.empty()) {
+	delete ss.back();
+	ss.pop_back();
+  }
+
+  while(!ts.empty()) {
+	delete ts.back();
+	ts.pop_back();
+  }
+
+  while(!ds.empty()) {
+	delete ds.back();
+	ds.pop_back();
+  }
+
+  while(!ps.empty()) {
+	delete ps.back();
+	ps.pop_back();
   }
 }
 
@@ -520,4 +590,10 @@ void simple_example() {
   std::cout << "   Bob: " << *bob << std::endl;
   std::cout << " Chris: " << *chris << std::endl;
   std::cout << "Darren: " << *darren << std::endl;
+
+  delete alice;
+  delete bob;
+  delete chris;
+  delete darren;
+  players.clear();
 }

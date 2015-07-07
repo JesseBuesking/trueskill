@@ -11,7 +11,7 @@ TARGET := bin/runner
 SRCEXT := cpp
 SOURCES := $(shell find $(SRCDIR) -type f -name "*.$(SRCEXT)" ! -name "python_wrapper.cpp")
 OBJECTS := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.o))
-CFLAGS := -g -DDEBUG # -Wall
+CFLAGS := -g -DDEBUG -O0 # -Wall
 ifeq ($(BUILD), release)
 CFLAGS := -Os
 endif

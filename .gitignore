@@ -3,6 +3,11 @@ build
 lib/*
 # eclipse
 Debug/*
+.settings/*
+.cproject
+.project
+.pydevproject
+core
 
 *.log
 *.o

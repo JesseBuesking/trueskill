@@ -8,6 +8,7 @@ static PyObject* _adjust_players(PyObject* self, PyObject* args) {
 	int size, i = 0;
 
 	// get the list from the arguments
+	// note: "O" flag means it's a python object
 	if (!PyArg_ParseTuple(args, "O", &list_obj)) {
 		return NULL;
 	}
@@ -26,14 +27,14 @@ static PyObject* _adjust_players(PyObject* self, PyObject* args) {
 
 	// create a vector of players to hold our soon-to-be-created player objects
 	std::vector<Player*> players;
+	PyObject* py_tuple;
 	for (i = 0; i < size; ++i) {
-		PyObject* py_tuple;
-		Player* p;
+		// create a new player object
+		Player* p = new Player();
 
 		// get the current item from the list, which happens to be a tuple (mu, sigma, rank)
 		py_tuple = PySequence_Fast_GET_ITEM(seq, i);
-		// create a new player object
-		p = new Player();
+
 
 		// convert the tuple items into their c types
 		p->mu = PyFloat_AsDouble(PyTuple_GetItem(py_tuple, 0));
@@ -48,8 +49,10 @@ static PyObject* _adjust_players(PyObject* self, PyObject* args) {
 	TrueSkill ts;
 	ts.adjust_players(players);
 
+	// create the result list
 	PyObject* result = PyList_New(size);
 	for (i = 0; i < size; ++i) {
+		// create a tuple and set it's values for the player
 		PyObject* py_tuple;
 
 		py_tuple = PyTuple_New(3);
@@ -57,11 +60,12 @@ static PyObject* _adjust_players(PyObject* self, PyObject* args) {
 		PyTuple_SetItem(py_tuple, 1, PyFloat_FromDouble(players[i]->sigma));
 		PyTuple_SetItem(py_tuple, 2, PyInt_FromLong((long)players[i]->rank));
 
+		// push the tuple onto the list
 		PyList_SetItem(result, i, py_tuple);
 	}
 
+	// return the list
 	return result;
-//	return Py_BuildValue("i", 0);
 }
 
 static PyMethodDef functions[] = {
@@ -69,6 +73,6 @@ static PyMethodDef functions[] = {
 	{NULL, NULL}
 };
 
-PyMODINIT_FUNC inittrueskill(void) {
-	Py_InitModule4("trueskill", functions, "trueskill module", NULL, PYTHON_API_VERSION);
+PyMODINIT_FUNC init_trueskill(void) {
+	Py_InitModule4("_trueskill", functions, "trueskill module", NULL, PYTHON_API_VERSION);
 }

@@ -17,14 +17,13 @@ class Gaussian {
 public:
   double pi;
   double tau;
+
   Gaussian() : pi(0.0), tau(0.0) {};
 
   void init_pi_tau(double pi, double tau);
   void init_mu_sigma(double mu, double sigma);
-
   double get_mu();
   double get_sigma();
-
   Gaussian* operator* (Gaussian* other) {
     Gaussian* gaussian = new Gaussian();
     gaussian->init_pi_tau(this->pi + other->pi, this->tau + other->tau);
@@ -45,21 +44,26 @@ private:
 public:
   std::vector<Variable*>* variables;
   int id;
+
   Factor() : id(s_id++) {}
+  ~Factor();
+
   void set_variables(std::vector<Variable*>* variables);
 };
 
 struct FactorKeyMapper {
-  bool operator()(const Factor* lhs, const Factor* rhs) const {
-	return lhs->id < rhs->id;
+  bool operator()(const Factor& lhs, const Factor& rhs) const {
+	return lhs.id < rhs.id;
   }
 };
 
 class Variable {
 public:
   Gaussian* value;
-  std::map<Factor*, Gaussian*, FactorKeyMapper> factors;
+  std::map<Factor, Gaussian*, FactorKeyMapper> factors;
+
   Variable() : value(new Gaussian) {};
+  ~Variable();
 
   void attach_factor(Factor* factor);
   void update_message(Factor* factor, Gaussian* message);
@@ -70,11 +74,14 @@ public:
 class PriorFactor : public Factor {
 public:
   Gaussian* gaussian;
+
   PriorFactor(Variable* variable, Gaussian* gaussian) : gaussian(gaussian) {
     std::vector<Variable*>* variables = new std::vector<Variable*>;
     variables->push_back(variable);
     this->set_variables(variables);
   };
+  ~PriorFactor();
+
   void start();
 };
 
@@ -94,6 +101,8 @@ public:
     this->value = value;
     this->variance = variance;
   }
+  ~LikelihoodFactor();
+
   void update_value();
   void update_mean();
 };
@@ -102,8 +111,8 @@ class SumFactor : public Factor {
 private:
   void _internal_update(
     Variable* var,
-    std::vector<Gaussian*>* y,
-    std::vector<Gaussian*>* fy,
+    std::vector<Gaussian*> y,
+    std::vector<Gaussian*> fy,
     std::vector<double>* a);
 public:
   Variable* sum;
@@ -111,6 +120,8 @@ public:
   std::vector<double>* coeffs;
 
   SumFactor(Variable* var, std::vector<Variable*>* terms, std::vector<double>* coeffs);
+  ~SumFactor();
+
   void update_sum();
   void update_term(unsigned int index);
 };
@@ -119,27 +130,36 @@ class TruncateFactor : public Factor {
 public:
   Variable* variable;
   double epsilon;
-  virtual void update() {}
+
   TruncateFactor(Variable* variable, double epsilon) : variable(variable), epsilon(epsilon) {}
+  virtual ~TruncateFactor() {}
+
+  virtual void update() {}
 };
 
 class TruncateFactorDraw : public TruncateFactor {
 public:
+
   TruncateFactorDraw(Variable* variable, double epsilon) : TruncateFactor(variable, epsilon) {
 	std::vector<Variable*>* variables = new std::vector<Variable*>;
     variables->push_back(variable);
     this->set_variables(variables);
   }
+  ~TruncateFactorDraw();
+
   void update();
 };
 
 class TruncateFactorWin : public TruncateFactor {
 public:
+
   TruncateFactorWin(Variable* variable, double epsilon) : TruncateFactor(variable, epsilon) {
 	std::vector<Variable*>* variables = new std::vector<Variable*>;
     variables->push_back(variable);
     this->set_variables(variables);
   }
+  ~TruncateFactorWin();
+
   void update();
 };
 

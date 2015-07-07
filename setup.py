@@ -1,7 +1,7 @@
 from distutils.core import setup, Extension
 
 module_def = Extension(
-    "trueskill",
+    "_trueskill",
     sources=[
         "src/python_wrapper.cpp",
         "src/const.cpp",
